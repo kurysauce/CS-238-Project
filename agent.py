@@ -1,6 +1,7 @@
 import pygame
 import random
 import time
+from RL import QLearningAgent  # Import the Q-learning agent
 
 pygame.init()
 SCREEN = WIDTH, HEIGHT = 300, 500
@@ -145,25 +146,16 @@ class Tetris:
         if self.intersects():
             self.figure.rotation = rotation
 
-# Agent logic for random moves
-def agent_action():
-    actions = ['left', 'right', 'down', 'rotate', 'drop']
-    action = random.choice(actions)
-    if action == 'left':
-        tetris.go_side(-1)
-    elif action == 'right':
-        tetris.go_side(1)
-    elif action == 'down':
-        tetris.go_down()
-    elif action == 'rotate':
-        tetris.rotate()
-    elif action == 'drop':
-        tetris.go_space()
-    return action
+# Initialize Q-learning agent
+agent = QLearningAgent(alpha=0.1, gamma=0.9, epsilon=1.0)
+use_random_agent = False  # Toggle to choose between random and Q-learning agent
+
+# Random agent action function
+def random_action():
+    return random.choice(['left', 'right', 'down', 'rotate', 'drop'])
 
 # Main game loop
 counter = 0
-move_down = False
 tetris = Tetris(ROWS, COLS)
 running = True
 while running:
@@ -175,25 +167,50 @@ while running:
         counter = 0
 
     if not tetris.gameover:
-        if counter % (FPS // (tetris.level * 2)) == 0 or move_down:
+        # Choose action based on agent type
+        if use_random_agent:
+            action = random_action()
+        else:
+            current_state = agent.get_state(tetris)
+            action = agent.choose_action(current_state)
+
+        # Perform the selected action
+        if action == 'left':
+            tetris.go_side(-1)
+        elif action == 'right':
+            tetris.go_side(1)
+        elif action == 'down':
+            tetris.go_down()
+        elif action == 'rotate':
+            tetris.rotate()
+        elif action == 'drop':
+            tetris.go_space()
+
+        # Automatic downward movement
+        if counter % (FPS // (tetris.level * 2)) == 0:
             tetris.go_down()
 
-        # Call the agent action
-        agent_action()
+        # Q-learning steps (only if Q-learning is enabled)
+        if not use_random_agent:
+            initial_score = tetris.score
+            reward = agent.get_reward(tetris, initial_score)
+            next_state = agent.get_state(tetris)
+            agent.update_q_value(current_state, action, reward, next_state)
+            agent.decay_epsilon()
 
     # Event handling
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
-    # Render game elements
+    # Render game elements (board, tetromino, HUD)
     for x in range(ROWS):
         for y in range(COLS):
             if tetris.board[x][y] > 0:
                 val = tetris.board[x][y]
                 img = Assets[val]
-                win.blit(img, (y*CELLSIZE, x*CELLSIZE))
-                pygame.draw.rect(win, WHITE, (y*CELLSIZE, x*CELLSIZE, CELLSIZE, CELLSIZE), 1)
+                win.blit(img, (y * CELLSIZE, x * CELLSIZE))
+                pygame.draw.rect(win, WHITE, (y * CELLSIZE, x * CELLSIZE, CELLSIZE, CELLSIZE), 1)
 
     if tetris.figure:
         for i in range(4):
@@ -215,12 +232,12 @@ while running:
         msg1 = font2.render('Press r to restart', True, RED)
         msg2 = font2.render('Press q to quit', True, RED)
 
-        win.blit(over, (rect.centerx-over.get_width()/2, rect.y + 20))
-        win.blit(msg1, (rect.centerx-msg1.get_width()/2, rect.y + 80))
-        win.blit(msg2, (rect.centerx-msg2.get_width()/2, rect.y + 110))
+        win.blit(over, (rect.centerx - over.get_width() / 2, rect.y + 20))
+        win.blit(msg1, (rect.centerx - msg1.get_width() / 2, rect.y + 80))
+        win.blit(msg2, (rect.centerx - msg2.get_width() / 2, rect.y + 110))
 
     # HUD
-    pygame.draw.rect(win, BLUE, (0, HEIGHT-120, WIDTH, 120))
+    pygame.draw.rect(win, BLUE, (0, HEIGHT - 120, WIDTH, 120))
     if tetris.next:
         for i in range(4):
             for j in range(4):
@@ -232,10 +249,10 @@ while running:
 
     scoreimg = font.render(f'{tetris.score}', True, WHITE)
     levelimg = font2.render(f'Level : {tetris.level}', True, WHITE)
-    win.blit(scoreimg, (250-scoreimg.get_width()//2, HEIGHT-110))
-    win.blit(levelimg, (250-levelimg.get_width()//2, HEIGHT-30))
+    win.blit(scoreimg, (250 - scoreimg.get_width() // 2, HEIGHT - 110))
+    win.blit(levelimg, (250 - levelimg.get_width() // 2, HEIGHT - 30))
 
-    pygame.draw.rect(win, BLUE, (0, 0, WIDTH, HEIGHT-120), 2)
+    pygame.draw.rect(win, BLUE, (0, 0, WIDTH, HEIGHT - 120), 2)
     clock.tick(FPS)
     pygame.display.update()
 pygame.quit()
