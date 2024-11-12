@@ -4,15 +4,17 @@ from main import Tetris, ROWS, COLS, BLACK, WHITE, CELLSIZE, SCREEN, Assets, clo
 
 # Initialize Pygame and create display
 pygame.init()
+print('gello')
 win = pygame.display.set_mode(SCREEN)
 
 # Initialize the Tetris game
 tetris = Tetris(ROWS, COLS)
 running = True
+can_move = True  # Ensure the agent can move pieces
 
 # Define the actions the agent can take
 ACTIONS = ['left', 'right', 'down', 'rotate', 'drop']
-idx = 0
+
 while running:
     # Fill the background
     win.fill(BLACK)
@@ -20,14 +22,14 @@ while running:
     # Check if the game is over
     if tetris.gameover:
         print("Game Over! Final score:", tetris.score)
-        break
+        tetris.__init__(ROWS, COLS)  # Restart the game if desired
+        continue
 
     # Randomly select an action
     action = random.choice(ACTIONS)
-    idx += 1
-    print(f"current index {idx} action {action}")
+    print(f"Agent action: {action}")  # Debugging statement to check actions
 
-    # Execute the chosen action
+    # Execute the chosen action directly
     if action == 'left':
         tetris.go_side(-1)
     elif action == 'right':
@@ -61,3 +63,6 @@ while running:
     # Update the display and maintain the frame rate
     pygame.display.update()
     clock.tick(FPS)
+
+    # Clear any pending events to prevent manual input
+    pygame.event.clear()  # Ensures no manual input affects the game
