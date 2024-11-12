@@ -8,7 +8,6 @@ win = pygame.display.set_mode(SCREEN, pygame.NOFRAME)
 CELLSIZE = 20
 ROWS = (HEIGHT-120) // CELLSIZE
 COLS = WIDTH // CELLSIZE
-
 clock = pygame.time.Clock()
 FPS = 24
 
