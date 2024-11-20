@@ -145,33 +145,25 @@ class Tetris:
         self.figure.rotate()
         if self.intersects():
             self.figure.rotation = rotation
+# Training loop for Q-Learning Agent
+agent = QLearningAgent(alpha=0.7, gamma=0.95, epsilon=0.9, num_episodes=10000, max_steps=100)
+use_random_agent = False  # Toggle between random agent and Q-learning agent
+training_episodes = 5000  # Number of episodes for training
 
-# Initialize Q-learning agent
-agent = QLearningAgent(alpha=0.1, gamma=0.9, epsilon=1.0)
-use_random_agent = False  # Toggle to choose between random and Q-learning agent
+# Training loop
+for episode in range(training_episodes):
+    tetris = Tetris(ROWS, COLS)  # Reset the game environment for each episode
+    total_reward = 0
 
-# Random agent action function
-def random_action():
-    return random.choice(['left', 'right', 'down', 'rotate', 'drop'])
+    for step in range(agent.max_steps):
+        if tetris.gameover:
+            break  # End the episode if the game is over
 
-# Main game loop
-counter = 0
-tetris = Tetris(ROWS, COLS)
-running = True
-while running:
-    win.fill(BLACK)
-
-    # Increment counter and move piece down periodically
-    counter += 1
-    if counter >= 10000:
-        counter = 0
-
-    if not tetris.gameover:
-        # Choose action based on agent type
+        # Choose an action
+        current_state = agent.get_state(tetris)
         if use_random_agent:
-            action = random_action()
+            action = random.choice(['left', 'right', 'down', 'rotate', 'drop'])
         else:
-            current_state = agent.get_state(tetris)
             action = agent.choose_action(current_state)
 
         # Perform the selected action
@@ -187,16 +179,26 @@ while running:
             tetris.go_space()
 
         # Automatic downward movement
-        if counter % (FPS // (tetris.level * 2)) == 0:
-            tetris.go_down()
+        tetris.go_down()
 
-        # Q-learning steps (only if Q-learning is enabled)
-        if not use_random_agent:
-            initial_score = tetris.score
-            reward = agent.get_reward(tetris, initial_score)
-            next_state = agent.get_state(tetris)
-            agent.update_q_value(current_state, action, reward, next_state)
-            agent.decay_epsilon()
+        # Compute reward and update Q-table
+        initial_score = tetris.score
+        reward = agent.get_reward(tetris, initial_score)
+        next_state = agent.get_state(tetris)
+        agent.update_q_value(current_state, action, reward, next_state)
+        # time.sleep(0.2) 
+
+        # Update total reward for the episode
+        total_reward += reward
+
+    # Decay epsilon for exploration-exploitation tradeoff
+    agent.decay_epsilon()
+
+    # Log progress
+    if episode % 100 == 0:
+        print(f"Episode {episode}/{training_episodes}, Total Reward: {total_reward}")
+
+    print(episode)
 
     # Event handling
     for event in pygame.event.get():
@@ -222,19 +224,19 @@ while running:
                     win.blit(img, (x, y))
                     pygame.draw.rect(win, WHITE, (x, y, CELLSIZE, CELLSIZE), 1)
 
-    # Display game-over screen if needed
-    if tetris.gameover:
-        rect = pygame.Rect((50, 140, WIDTH-100, HEIGHT-350))
-        pygame.draw.rect(win, BLACK, rect)
-        pygame.draw.rect(win, RED, rect, 2)
+    # # Display game-over screen if needed
+    # if tetris.gameover:
+    #     rect = pygame.Rect((50, 140, WIDTH-100, HEIGHT-350))
+    #     pygame.draw.rect(win, BLACK, rect)
+    #     pygame.draw.rect(win, RED, rect, 2)
 
-        over = font2.render('Game Over', True, WHITE)
-        msg1 = font2.render('Press r to restart', True, RED)
-        msg2 = font2.render('Press q to quit', True, RED)
+    #     over = font2.render('Game Over', True, WHITE)
+    #     msg1 = font2.render('Press r to restart', True, RED)
+    #     msg2 = font2.render('Press q to quit', True, RED)
 
-        win.blit(over, (rect.centerx - over.get_width() / 2, rect.y + 20))
-        win.blit(msg1, (rect.centerx - msg1.get_width() / 2, rect.y + 80))
-        win.blit(msg2, (rect.centerx - msg2.get_width() / 2, rect.y + 110))
+    #     win.blit(over, (rect.centerx - over.get_width() / 2, rect.y + 20))
+    #     win.blit(msg1, (rect.centerx - msg1.get_width() / 2, rect.y + 80))
+    #     win.blit(msg2, (rect.centerx - msg2.get_width() / 2, rect.y + 110))
 
     # HUD
     pygame.draw.rect(win, BLUE, (0, HEIGHT - 120, WIDTH, 120))

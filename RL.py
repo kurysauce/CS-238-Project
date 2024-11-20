@@ -3,12 +3,15 @@ import numpy as np
 from collections import defaultdict
 
 class QLearningAgent:
-    def __init__(self, alpha=0.1, gamma=0.9, epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995):
+    def __init__(self, alpha=0.9, gamma=0.95, epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995, num_episodes=10000, max_steps=100):
         self.alpha = alpha  # Learning rate
         self.gamma = gamma  # Discount factor
         self.epsilon = epsilon  # Exploration rate
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
+
+        self.num_episodes = num_episodes  # Number of times agent will play game
+        self.max_steps = max_steps 
         self.Q_table = defaultdict(float)  # Q-table as a dictionary
 
     def get_state(self, tetris):
@@ -37,36 +40,45 @@ class QLearningAgent:
             self.epsilon *= self.epsilon_decay
 
     def get_reward(self, tetris, initial_score):
-        """Calculate a more complex reward based on line clears, gaps, and height."""
+        """Improved reward structure for line clears and compact play."""
         reward = 0
-        
-        # Reward for score increase (i.e., lines cleared)
+
+        # Reward for line clears (scaled significantly higher)
         score_diff = tetris.score - initial_score
         if score_diff > 0:
-            reward += score_diff * 10  # Adjust this scaling factor as needed
+            reward += score_diff * 100  # Reward line clears heavily
 
-        # Penalize for one-unit gaps
+            # Additional bonus for multiple line clears
+            lines_cleared = score_diff // 100  # Assuming 100 points per line clear
+            if lines_cleared > 1:
+                reward += (lines_cleared ** 2) * 100  # Exponential bonus for multi-line clears
+
+        # Penalize one-unit gaps
         one_unit_gaps = sum(
             1 for row in range(1, tetris.rows)
             for col in range(tetris.cols)
             if tetris.board[row][col] == 0 and tetris.board[row - 1][col] > 0
         )
-        reward -= one_unit_gaps * 2  # Adjust penalty as needed
+        reward -= one_unit_gaps * 10  # Strong penalty for gaps
 
         # Penalize the height of the tallest column
-        filled_rows = [row for row in range(tetris.rows) if any(tetris.board[row][col] > 0 for col in range(tetris.cols))]
-        max_height = max(filled_rows) if filled_rows else 0
-        reward -= max_height * 0.5  # Adjust scaling factor as needed
+        heights = [
+            max(row for row in range(tetris.rows) if tetris.board[row][col] > 0)
+            for col in range(tetris.cols)
+            if any(tetris.board[row][col] > 0 for row in range(tetris.rows))
+        ]
+        max_height = max(heights, default=0)
+        reward -= max_height * 3  # Increased penalty for tall columns
 
-        # Encourage compactness (fewer gaps per row)
-        row_gaps = sum(
-            sum(1 for col in range(tetris.cols) if tetris.board[row][col] == 0)
+        # Encourage compact rows (fewer empty cells in a row)
+        compactness_bonus = sum(
+            tetris.cols - sum(1 for col in range(tetris.cols) if tetris.board[row][col] == 0)
             for row in range(tetris.rows)
         )
-        reward -= row_gaps * 0.1  # Adjust penalty as needed
+        reward += compactness_bonus * 0.2  # Small bonus for compact stacking
 
-        # Large negative reward if game over
+        # Game-over penalty
         if tetris.gameover:
-            reward -= 100
+            reward -= 2000  # Strong penalty for game over
 
         return reward
