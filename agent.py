@@ -1,3 +1,4 @@
+import numpy as np
 import pygame
 import random
 import time
@@ -154,16 +155,19 @@ training_episodes = 5000  # Number of episodes for training
 for episode in range(training_episodes):
     tetris = Tetris(ROWS, COLS)  # Reset the game environment for each episode
     total_reward = 0
+    running = True
 
-    for step in range(agent.max_steps):
+    while running:
+        # Check if the game is over
         if tetris.gameover:
-            break  # End the episode if the game is over
+            print(f"Game Over! Score: {tetris.score}")
+            break
 
         # Choose an action
         current_state = agent.get_state(tetris)
-        if use_random_agent:
-            action = random.choice(['left', 'right', 'down', 'rotate', 'drop'])
-        else:
+        if episode < 250:  # Early episodes: Bias exploration to 'right'
+            action = 'right' if np.random.rand() < 0.5 else random.choice(['left', 'down', 'rotate', 'drop'])
+        else:  # Later episodes: Use the agent's policy
             action = agent.choose_action(current_state)
 
         # Perform the selected action
@@ -178,7 +182,7 @@ for episode in range(training_episodes):
         elif action == 'drop':
             tetris.go_space()
 
-        # Automatic downward movement
+        # Automatically move tetromino down
         tetris.go_down()
 
         # Compute reward and update Q-table
@@ -186,10 +190,62 @@ for episode in range(training_episodes):
         reward = agent.get_reward(tetris, initial_score)
         next_state = agent.get_state(tetris)
         agent.update_q_value(current_state, action, reward, next_state)
-        # time.sleep(0.2) 
 
-        # Update total reward for the episode
+        # Accumulate total reward for the episode
         total_reward += reward
+
+        # Render game elements
+        win.fill(BLACK)  # Clear the screen
+
+        # Draw the board
+        for x in range(ROWS):
+            for y in range(COLS):
+                if tetris.board[x][y] > 0:
+                    val = tetris.board[x][y]
+                    img = Assets[val]
+                    win.blit(img, (y * CELLSIZE, x * CELLSIZE))
+                    pygame.draw.rect(win, WHITE, (y * CELLSIZE, x * CELLSIZE, CELLSIZE, CELLSIZE), 1)
+
+        # Draw the current tetromino
+        if tetris.figure:
+            for i in range(4):
+                for j in range(4):
+                    if i * 4 + j in tetris.figure.image():
+                        img = Assets[tetris.figure.color]
+                        x = CELLSIZE * (tetris.figure.x + j)
+                        y = CELLSIZE * (tetris.figure.y + i)
+                        win.blit(img, (x, y))
+                        pygame.draw.rect(win, WHITE, (x, y, CELLSIZE, CELLSIZE), 1)
+
+        # Draw the HUD
+        pygame.draw.rect(win, BLUE, (0, HEIGHT - 120, WIDTH, 120))
+        if tetris.next:
+            for i in range(4):
+                for j in range(4):
+                    if i * 4 + j in tetris.next.image():
+                        img = Assets[tetris.next.color]
+                        x = CELLSIZE * (tetris.next.x + j - 4)
+                        y = HEIGHT - 100 + CELLSIZE * (tetris.next.y + i)
+                        win.blit(img, (x, y))
+
+        # Render score and level
+        scoreimg = font.render(f'{tetris.score}', True, WHITE)
+        levelimg = font2.render(f'Level : {tetris.level}', True, WHITE)
+        win.blit(scoreimg, (250 - scoreimg.get_width() // 2, HEIGHT - 110))
+        win.blit(levelimg, (250 - levelimg.get_width() // 2, HEIGHT - 30))
+
+        pygame.draw.rect(win, BLUE, (0, 0, WIDTH, HEIGHT - 120), 2)
+
+        # Refresh the display
+        clock.tick(FPS)
+        pygame.display.update()
+
+        # Event handling
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                pygame.quit()
+                exit()
 
     # Decay epsilon for exploration-exploitation tradeoff
     agent.decay_epsilon()
@@ -197,64 +253,3 @@ for episode in range(training_episodes):
     # Log progress
     if episode % 100 == 0:
         print(f"Episode {episode}/{training_episodes}, Total Reward: {total_reward}")
-
-    print(episode)
-
-    # Event handling
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-
-    # Render game elements (board, tetromino, HUD)
-    for x in range(ROWS):
-        for y in range(COLS):
-            if tetris.board[x][y] > 0:
-                val = tetris.board[x][y]
-                img = Assets[val]
-                win.blit(img, (y * CELLSIZE, x * CELLSIZE))
-                pygame.draw.rect(win, WHITE, (y * CELLSIZE, x * CELLSIZE, CELLSIZE, CELLSIZE), 1)
-
-    if tetris.figure:
-        for i in range(4):
-            for j in range(4):
-                if i * 4 + j in tetris.figure.image():
-                    img = Assets[tetris.figure.color]
-                    x = CELLSIZE * (tetris.figure.x + j)
-                    y = CELLSIZE * (tetris.figure.y + i)
-                    win.blit(img, (x, y))
-                    pygame.draw.rect(win, WHITE, (x, y, CELLSIZE, CELLSIZE), 1)
-
-    # # Display game-over screen if needed
-    # if tetris.gameover:
-    #     rect = pygame.Rect((50, 140, WIDTH-100, HEIGHT-350))
-    #     pygame.draw.rect(win, BLACK, rect)
-    #     pygame.draw.rect(win, RED, rect, 2)
-
-    #     over = font2.render('Game Over', True, WHITE)
-    #     msg1 = font2.render('Press r to restart', True, RED)
-    #     msg2 = font2.render('Press q to quit', True, RED)
-
-    #     win.blit(over, (rect.centerx - over.get_width() / 2, rect.y + 20))
-    #     win.blit(msg1, (rect.centerx - msg1.get_width() / 2, rect.y + 80))
-    #     win.blit(msg2, (rect.centerx - msg2.get_width() / 2, rect.y + 110))
-
-    # HUD
-    pygame.draw.rect(win, BLUE, (0, HEIGHT - 120, WIDTH, 120))
-    if tetris.next:
-        for i in range(4):
-            for j in range(4):
-                if i * 4 + j in tetris.next.image():
-                    img = Assets[tetris.next.color]
-                    x = CELLSIZE * (tetris.next.x + j - 4)
-                    y = HEIGHT - 100 + CELLSIZE * (tetris.next.y + i)
-                    win.blit(img, (x, y))
-
-    scoreimg = font.render(f'{tetris.score}', True, WHITE)
-    levelimg = font2.render(f'Level : {tetris.level}', True, WHITE)
-    win.blit(scoreimg, (250 - scoreimg.get_width() // 2, HEIGHT - 110))
-    win.blit(levelimg, (250 - levelimg.get_width() // 2, HEIGHT - 30))
-
-    pygame.draw.rect(win, BLUE, (0, 0, WIDTH, HEIGHT - 120), 2)
-    clock.tick(FPS)
-    pygame.display.update()
-pygame.quit()

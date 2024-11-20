@@ -49,9 +49,9 @@ class QLearningAgent:
             reward += score_diff * 100  # Reward line clears heavily
 
             # Additional bonus for multiple line clears
-            lines_cleared = score_diff // 100  # Assuming 100 points per line clear
+            lines_cleared = score_diff // 10  # Assuming 100 points per line clear
             if lines_cleared > 1:
-                reward += (lines_cleared ** 2) * 100  # Exponential bonus for multi-line clears
+                reward += (lines_cleared ** 2) * 10  # Exponential bonus for multi-line clears
 
         # Penalize one-unit gaps
         one_unit_gaps = sum(
