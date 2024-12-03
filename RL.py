@@ -15,18 +15,28 @@ class QLearningAgent:
         self.Q_table = defaultdict(float)  # Q-table as a dictionary
 
     def get_state(self, tetris):
-        """Simplify the board and piece information into a tuple for Q-learning."""
+        """Include spatial features like column heights and variance in state representation."""
         board_state = tuple(tuple(1 if cell > 0 else 0 for cell in row) for row in tetris.board)
-        piece_state = (tetris.figure.type, tetris.figure.rotation, tetris.figure.x, tetris.figure.y)
-        return (board_state, piece_state)
+        column_heights = [
+            max(row for row in range(tetris.rows) if tetris.board[row][col] > 0)
+            if any(tetris.board[row][col] > 0 for row in range(tetris.rows)) else 0
+            for col in range(tetris.cols)
+        ]
+        height_variance = np.var(column_heights)
+        return (board_state, tuple(column_heights), height_variance)
+
 
     def choose_action(self, state):
-        """Choose an action based on epsilon-greedy policy."""
-        if np.random.rand() < self.epsilon:
-            return random.choice(['left', 'right', 'down', 'rotate', 'drop'])
-        else:
+        """Choose an action with a bias toward exploring the board."""
+        if np.random.rand() < self.epsilon:  # Exploration
+            # Biased random choice to prioritize left/right
+            actions = ['left', 'right', 'down', 'rotate', 'drop']
+            weights = [0.4, 0.4, 0.1, 0.05, 0.05]  # Favor left and right
+            return random.choices(actions, weights=weights, k=1)[0]
+        else:  # Exploitation
             q_values = {a: self.Q_table[(state, a)] for a in ['left', 'right', 'down', 'rotate', 'drop']}
             return max(q_values, key=q_values.get)
+
 
     def update_q_value(self, state, action, reward, next_state):
         """Update the Q-value for the state-action pair using the Q-learning formula."""
@@ -39,46 +49,43 @@ class QLearningAgent:
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-    def get_reward(self, tetris, initial_score):
-        """Improved reward structure for line clears and compact play."""
+    def get_reward(self, tetris, dropped_piece_count):
+        """Calculate the reward based on gameplay metrics."""
         reward = 0
+        
+        # 1 point per dropped piece
+        reward += dropped_piece_count
 
-        # Reward for line clears (scaled significantly higher)
-        score_diff = tetris.score - initial_score
-        if score_diff > 0:
-            reward += score_diff * 100  # Reward line clears heavily
+        # Reward for clearing lines: board_width * (lines_cleared^2)
+        lines_cleared = tetris.score - dropped_piece_count  # Assuming score increments by lines cleared
+        board_width = tetris.cols
+        reward += board_width * (lines_cleared ** 2)
 
-            # Additional bonus for multiple line clears
-            lines_cleared = score_diff // 10  # Assuming 100 points per line clear
-            if lines_cleared > 1:
-                reward += (lines_cleared ** 2) * 10  # Exponential bonus for multi-line clears
-
-        # Penalize one-unit gaps
-        one_unit_gaps = sum(
-            1 for row in range(1, tetris.rows)
-            for col in range(tetris.cols)
+        # Calculate the number of holes (empty cells with a filled cell above them)
+        holes = sum(
+            1 for col in range(tetris.cols)
+            for row in range(1, tetris.rows)
             if tetris.board[row][col] == 0 and tetris.board[row - 1][col] > 0
         )
-        reward -= one_unit_gaps * 10  # Strong penalty for gaps
+        reward -= holes * 2  # Penalize heavily for holes
 
-        # Penalize the height of the tallest column
-        heights = [
-            max(row for row in range(tetris.rows) if tetris.board[row][col] > 0)
+        # Calculate the bumpiness (difference in heights between adjacent columns)
+        column_heights = [
+            max((row for row in range(tetris.rows) if tetris.board[row][col] > 0), default=0)
             for col in range(tetris.cols)
-            if any(tetris.board[row][col] > 0 for row in range(tetris.rows))
         ]
-        max_height = max(heights, default=0)
-        reward -= max_height * 3  # Increased penalty for tall columns
+        bumpiness = sum(abs(column_heights[i] - column_heights[i + 1]) for i in range(len(column_heights) - 1))
+        reward -= bumpiness * 0.5  # Penalize uneven surfaces
 
-        # Encourage compact rows (fewer empty cells in a row)
-        compactness_bonus = sum(
-            tetris.cols - sum(1 for col in range(tetris.cols) if tetris.board[row][col] == 0)
-            for row in range(tetris.rows)
-        )
-        reward += compactness_bonus * 0.2  # Small bonus for compact stacking
+        # Sum of column heights (to discourage tall stacks)
+        total_height = sum(column_heights)
+        reward -= total_height * 0.1  # Penalize high total height
 
-        # Game-over penalty
+        # Game over penalty
         if tetris.gameover:
-            reward -= 2000  # Strong penalty for game over
+            reward -= 1  # Strong penalty for losing
 
         return reward
+
+
+

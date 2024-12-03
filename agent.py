@@ -13,7 +13,7 @@ ROWS = (HEIGHT-120) // CELLSIZE
 COLS = WIDTH // CELLSIZE
 
 clock = pygame.time.Clock()
-FPS = 24
+FPS = 2000
 
 # COLORS *********************************************************************
 BLACK = (21, 24, 29)
@@ -147,14 +147,17 @@ class Tetris:
         if self.intersects():
             self.figure.rotation = rotation
 # Training loop for Q-Learning Agent
-agent = QLearningAgent(alpha=0.7, gamma=0.95, epsilon=0.9, num_episodes=10000, max_steps=100)
+agent = QLearningAgent(alpha=0.5, gamma=0.95, epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.999, num_episodes=10000, max_steps=100)
 use_random_agent = False  # Toggle between random agent and Q-learning agent
 training_episodes = 5000  # Number of episodes for training
+# Inside the training loop
 
 # Training loop
 for episode in range(training_episodes):
     tetris = Tetris(ROWS, COLS)  # Reset the game environment for each episode
+    initial_score = tetris.score
     total_reward = 0
+    dropped_piece_count = 0  # Initialize dropped piece counter for the episode
     running = True
 
     while running:
@@ -165,10 +168,7 @@ for episode in range(training_episodes):
 
         # Choose an action
         current_state = agent.get_state(tetris)
-        if episode < 250:  # Early episodes: Bias exploration to 'right'
-            action = 'right' if np.random.rand() < 0.5 else random.choice(['left', 'down', 'rotate', 'drop'])
-        else:  # Later episodes: Use the agent's policy
-            action = agent.choose_action(current_state)
+        action = agent.choose_action(current_state)
 
         # Perform the selected action
         if action == 'left':
@@ -181,13 +181,15 @@ for episode in range(training_episodes):
             tetris.rotate()
         elif action == 'drop':
             tetris.go_space()
+            dropped_piece_count += 1  # Increment when a piece is hard-dropped
 
         # Automatically move tetromino down
         tetris.go_down()
+        if tetris.figure.y == tetris.rows - 1 or tetris.intersects():
+            dropped_piece_count += 1  # Increment for a natural drop that places a piece
 
         # Compute reward and update Q-table
-        initial_score = tetris.score
-        reward = agent.get_reward(tetris, initial_score)
+        reward = agent.get_reward(tetris, dropped_piece_count)  # Pass dropped_piece_count to get_reward
         next_state = agent.get_state(tetris)
         agent.update_q_value(current_state, action, reward, next_state)
 
@@ -252,4 +254,4 @@ for episode in range(training_episodes):
 
     # Log progress
     if episode % 100 == 0:
-        print(f"Episode {episode}/{training_episodes}, Total Reward: {total_reward}")
+        print(f"Episode {episode}/{training_episodes}, Total Reward: {total_reward}, Dropped Pieces: {dropped_piece_count}")
