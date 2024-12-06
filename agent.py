@@ -97,7 +97,7 @@ class Tetris:
         return intersection
 
     def remove_line(self):
-        rerun = False
+        lines_cleared = 0
         for y in range(self.rows-1, 0, -1):
             is_full = True
             for x in range(0, self.cols):
@@ -107,12 +107,12 @@ class Tetris:
                 del self.board[y]
                 self.board.insert(0, [0 for i in range(self.cols)])
                 self.score += 1
+                lines_cleared += 1
                 if self.score % 10 == 0:
                     self.level += 1
-                rerun = True
 
-        if rerun:
-            self.remove_line()
+        return lines_cleared
+
 
     def freeze(self):
         for i in range(4):
@@ -147,30 +147,30 @@ class Tetris:
         if self.intersects():
             self.figure.rotation = rotation
 # Training loop for Q-Learning Agent
-agent = QLearningAgent(alpha=0.5, gamma=0.95, epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.999, num_episodes=10000, max_steps=100)
-use_random_agent = False  # Toggle between random agent and Q-learning agent
+agent = QLearningAgent(alpha=0.5, gamma=0.95, epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995, num_episodes=10000, max_steps=100)
 training_episodes = 5000  # Number of episodes for training
-# Inside the training loop
 
 # Training loop
 for episode in range(training_episodes):
     tetris = Tetris(ROWS, COLS)  # Reset the game environment for each episode
-    initial_score = tetris.score
     total_reward = 0
-    dropped_piece_count = 0  # Initialize dropped piece counter for the episode
+    total_lines_cleared = 0
+    steps = 0  # Count the steps in the episode
     running = True
 
     while running:
         # Check if the game is over
         if tetris.gameover:
-            print(f"Game Over! Score: {tetris.score}")
+            print(f"Game Over! Episode: {episode}, Score: {tetris.score}")
             break
 
-        # Choose an action
+        # Get the current state
         current_state = agent.get_state(tetris)
+
+        # Choose an action
         action = agent.choose_action(current_state)
 
-        # Perform the selected action
+        # Perform the action
         if action == 'left':
             tetris.go_side(-1)
         elif action == 'right':
@@ -181,20 +181,23 @@ for episode in range(training_episodes):
             tetris.rotate()
         elif action == 'drop':
             tetris.go_space()
-            dropped_piece_count += 1  # Increment when a piece is hard-dropped
 
         # Automatically move tetromino down
         tetris.go_down()
-        if tetris.figure.y == tetris.rows - 1 or tetris.intersects():
-            dropped_piece_count += 1  # Increment for a natural drop that places a piece
 
-        # Compute reward and update Q-table
-        reward = agent.get_reward(tetris, dropped_piece_count)  # Pass dropped_piece_count to get_reward
+        # Compute reward
+        reward = agent.get_reward(tetris)
+
+        # Get the next state
         next_state = agent.get_state(tetris)
+
+        # Update Q-table
         agent.update_q_value(current_state, action, reward, next_state)
 
-        # Accumulate total reward for the episode
+        # Update metrics
         total_reward += reward
+        total_lines_cleared += tetris.score  # Score increases by the number of lines cleared
+        steps += 1
 
         # Render game elements
         win.fill(BLACK)  # Clear the screen
@@ -254,4 +257,6 @@ for episode in range(training_episodes):
 
     # Log progress
     if episode % 100 == 0:
-        print(f"Episode {episode}/{training_episodes}, Total Reward: {total_reward}, Dropped Pieces: {dropped_piece_count}")
+        avg_reward = total_reward / steps if steps > 0 else 0
+        avg_lines_cleared = total_lines_cleared / steps if steps > 0 else 0
+        print(f"Episode {episode}/{training_episodes}, Average Reward: {avg_reward:.2f}, Average Lines Cleared: {avg_lines_cleared:.2f}, Epsilon: {agent.epsilon:.2f}")
