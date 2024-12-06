@@ -10,7 +10,7 @@ import os
 # Mute game audio
 os.environ["SDL_AUDIODRIVER"] = "dummy"
 
-# Hyperparameters
+# Hyperparameters 
 gamma = 0.99              # Discount factor
 epsilon = 1.0             # Initial exploration rate
 epsilon_min = 0.01        # Minimum epsilon
@@ -22,7 +22,7 @@ episodes = 20000          # Number of episodes
 max_timesteps = 1000      # Max timesteps per episode
 target_update_interval = 1000  # Update target network every 1000 steps
 
-# Reward Shaping (Consider Adjusting These if Needed)
+##### MODIFY REWARDS AS NEEDED ####
 proximity_reward = 5
 hit_paddle_reward = 10
 score_reward = 20
