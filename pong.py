@@ -7,7 +7,7 @@ import math
 alpha = 0.01       # Smaller learning rate for stability
 gamma = 0.99       # Discount factor
 epsilon = 1.0      # Start with full exploration
-epsilon_min = 0.01
+epsilon_min = 0.001
 epsilon_decay = 0.999  # Slower decay to allow more exploration
 episodes = 20000   # Longer training period
 max_timesteps = 1000
@@ -103,6 +103,9 @@ def update_q(state, action, reward, next_state):
     next_max = np.max(Q[next_state])
     Q[state][action] = old_value + alpha * (reward + gamma * next_max - old_value)
 
+def ball_hits_paddle(observation):
+    ball_x, ball_y, paddle_y = extract_positions(observation)
+    return abs(ball_x - 144) < 10 and abs(ball_y - paddle_y) < 10
 # Training loop
 for episode in range(episodes):
     # Create environment with or without rendering
@@ -125,7 +128,9 @@ for episode in range(episodes):
 
         # Reward shaping: small reward for paddle-ball interaction
         if abs(next_ball_x - 144) < 10:  # Ball is close to the paddle
-            reward += 0.5
+            reward += 50
+        if ball_hits_paddle:
+            reward += 100
 
         update_q(state, action_idx, reward, next_state)
 
