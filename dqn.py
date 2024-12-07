@@ -6,30 +6,32 @@ import torch.nn as nn
 import torch.optim as optim
 from collections import deque
 import os
+import pickle
+import csv
 
 # Mute game audio
 os.environ["SDL_AUDIODRIVER"] = "dummy"
 
-# Hyperparameters 
-gamma = 0.99              # Discount factor
-epsilon = 1.0             # Initial exploration rate
-epsilon_min = 0.01        # Minimum epsilon
-epsilon_decay = 0.995     # Epsilon decay
-learning_rate = 1e-4      # Learning rate for the optimizer
-batch_size = 32           # Batch size for experience replay
-memory_size = 100000      # Replay buffer size
-episodes = 20000          # Number of episodes
-max_timesteps = 1000      # Max timesteps per episode
-target_update_interval = 1000  # Update target network every 1000 steps
+# Hyperparameters
+gamma = 0.99
+epsilon = 1.0
+epsilon_min = 0.01
+epsilon_decay = 0.998
+learning_rate = 5e-5
+batch_size = 32
+memory_size = 100000
+episodes = 150  # Adjust as needed
+max_timesteps = 1000
+target_update_interval = 1000
 
-##### MODIFY REWARDS AS NEEDED ####
-proximity_reward = 5
-hit_paddle_reward = 10
-score_reward = 20
+# Reward values
+proximity_reward = 15
+hit_paddle_reward = 30
+score_reward = 75
 
-# Environment setup (no rendering)
+# Environment setup
 env = gym.make('ALE/Pong-v5', render_mode=None)
-n_actions = env.action_space.n  # Number of actions
+n_actions = env.action_space.n
 
 # Replay buffer
 replay_buffer = deque(maxlen=memory_size)
@@ -66,12 +68,29 @@ target_network.eval()
 
 optimizer = optim.Adam(q_network.parameters(), lr=learning_rate)
 
+# Save Q-Table
+def save_q_table(q_network, episode, filename):
+    q_state_dict = q_network.state_dict()
+    with open(f"{filename}_episode_{episode}.pkl", "wb") as f:
+        pickle.dump(q_state_dict, f)
+    print(f"Q-Table (weights) saved at episode {episode}.")
+
+# Save metrics
+def save_metrics_to_csv(metrics, filename):
+    keys = metrics.keys()
+    with open(filename, mode='w', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=keys)
+        writer.writeheader()
+        for i in range(len(metrics["episode"])):
+            row = {key: metrics[key][i] for key in keys}
+            writer.writerow(row)
+
+# Preprocess and stack frames
 def preprocess_frame(frame):
-    # Convert to grayscale, crop, resize, and normalize
-    frame = frame[34:194]  # crop play area
-    frame = frame.mean(axis=2)  # grayscale
-    frame = frame / 255.0       # normalize
-    frame = np.resize(frame, (84, 84))  # resize
+    frame = frame[34:194]
+    frame = frame.mean(axis=2)
+    frame = frame / 255.0
+    frame = np.resize(frame, (84, 84))
     return frame
 
 def stack_frames(stacked_frames, frame, is_new_episode):
@@ -82,58 +101,23 @@ def stack_frames(stacked_frames, frame, is_new_episode):
         stacked_frames[-1] = frame
     return stacked_frames
 
-def sample_experiences():
-    minibatch = random.sample(replay_buffer, batch_size)
-    states, actions, rewards, next_states, dones = zip(*minibatch)
-    return (
-        torch.tensor(states, dtype=torch.float32, device=device),
-        torch.tensor(actions, dtype=torch.int64, device=device),
-        torch.tensor(rewards, dtype=torch.float32, device=device),
-        torch.tensor(next_states, dtype=torch.float32, device=device),
-        torch.tensor(dones, dtype=torch.float32, device=device),
-    )
+# Training metrics
+metrics = {"episode": [], "total_reward": [], "epsilon": []}
+q_values_trend = []  # Track Q-values for graphing trends
 
-def ball_hits_paddle(ball_x, ball_y, paddle_y):
-    # Approximate paddle position and size
-    # This is a simplified heuristic, adjust if needed.
-    paddle_height = 20  # approximate
-    return abs(ball_x - 144) < 10 and abs(ball_y - paddle_y) < paddle_height / 2
+# Log Q-values for the first 50 episodes
+def log_q_values(q_network, episode, q_values_trend):
+    q_state_dict = q_network.state_dict()
+    layer_key = "fc.2.weight"  # Example layer; adjust to your model structure
+    q_values = q_state_dict[layer_key].cpu().numpy()
+    q_values_trend.append((episode, q_values.mean()))
 
-def get_positions(obs):
-    # Extract ball and paddle positions from RGB frame
-    white_pixels = np.where(np.all(obs == [236, 236, 236], axis=-1))
-    ys = white_pixels[0]
-    xs = white_pixels[1]
-
-    ball_x, ball_y = None, None
-    paddle_y = None
-    if len(xs) > 0:
-        # Paddle detection
-        paddle_mask = (xs == 144)
-        paddle_ys = ys[paddle_mask]
-        if len(paddle_ys) > 0:
-            paddle_y = np.mean(paddle_ys)
-
-        # Ball detection
-        ball_mask = (xs > 16) & (xs < 144)
-        ball_xs = xs[ball_mask]
-        ball_ys = ys[ball_mask]
-
-        if len(ball_xs) > 0:
-            ball_x = np.mean(ball_xs)
-            ball_y = np.mean(ball_ys)
-    return ball_x, ball_y, paddle_y
-
+# Training loop
 for episode in range(episodes):
     obs, _ = env.reset()
     frame = preprocess_frame(obs)
     stacked_frames = stack_frames(None, frame, True)
     total_reward = 0.0
-
-    # Extract initial positions for shaping
-    prev_ball_x, prev_ball_y, prev_paddle_y = get_positions(obs)
-
-    print(f"Starting Episode {episode + 1}/{episodes}")  # Print when episode starts
 
     for t in range(max_timesteps):
         if random.uniform(0, 1) < epsilon:
@@ -148,22 +132,11 @@ for episode in range(episodes):
         next_stacked_frames = stack_frames(stacked_frames, next_frame, False)
 
         # Reward shaping
-        ball_x, ball_y, paddle_y = get_positions(next_obs)
-        if ball_x is not None and ball_y is not None and paddle_y is not None:
-            # Proximity reward
-            if abs(ball_x - 144) < 10:
-                reward += proximity_reward
-            # Paddle hit reward
-            if prev_ball_x is not None and prev_ball_y is not None and prev_paddle_y is not None:
-                if ball_hits_paddle(ball_x, ball_y, paddle_y):
-                    reward += hit_paddle_reward
-            # If base reward is +1 for scoring
-            if reward == 1:
-                reward += score_reward
+        # Adjust this based on your proximity_reward, hit_paddle_reward, etc.
+        if reward == 1:
+            reward += score_reward
 
-        # Store experience
         replay_buffer.append((stacked_frames, action, reward, next_stacked_frames, done))
-
         stacked_frames = next_stacked_frames
         total_reward += reward
 
@@ -180,20 +153,32 @@ for episode in range(episodes):
             loss.backward()
             optimizer.step()
 
-        # Update target network
         if t % target_update_interval == 0:
             target_network.load_state_dict(q_network.state_dict())
-
-        prev_ball_x, prev_ball_y, prev_paddle_y = ball_x, ball_y, paddle_y
 
         if done or truncated:
             break
 
-    # Decay epsilon
+    # Log metrics and Q-values
+    metrics["episode"].append(episode)
+    metrics["total_reward"].append(total_reward)
+    metrics["epsilon"].append(epsilon)
+
+    if episode < 50:  # Save Q-values for the first 50 episodes
+        save_q_table(q_network, episode, "q_table")
+        log_q_values(q_network, episode, q_values_trend)
+
     if epsilon > epsilon_min:
         epsilon *= epsilon_decay
 
-    # Print the total reward after the episode completes
     print(f"Episode {episode + 1}/{episodes} completed with Total Reward: {total_reward}, Epsilon: {epsilon:.3f}")
+
+# Save Q-values trends to a CSV
+with open("q_values_trend.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["Episode", "Mean Q-Value"])
+    writer.writerows(q_values_trend)
+
+print("Q-values trends saved to 'q_values_trend.csv'.")
 
 env.close()
