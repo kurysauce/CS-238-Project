@@ -34,7 +34,20 @@ env = gym.make('ALE/Pong-v5', render_mode=None)
 n_actions = env.action_space.n
 
 # Replay buffer
+
 replay_buffer = deque(maxlen=memory_size)
+
+# Function to sample experiences
+def sample_experiences():
+    """Sample a batch of experiences from the replay buffer."""
+    batch = random.sample(replay_buffer, batch_size)
+    states = torch.tensor(np.array([exp[0] for exp in batch]), dtype=torch.float32).to(device)
+    actions = torch.tensor(np.array([exp[1] for exp in batch]), dtype=torch.long).to(device)
+    rewards_batch = torch.tensor(np.array([exp[2] for exp in batch]), dtype=torch.float32).to(device)
+    next_states = torch.tensor(np.array([exp[3] for exp in batch]), dtype=torch.float32).to(device)
+    dones = torch.tensor(np.array([exp[4] for exp in batch]), dtype=torch.float32).to(device)
+    return states, actions, rewards_batch, next_states, dones
+
 
 # Neural network for approximating Q-values
 class DQNetwork(nn.Module):
@@ -106,11 +119,18 @@ metrics = {"episode": [], "total_reward": [], "epsilon": []}
 q_values_trend = []  # Track Q-values for graphing trends
 
 # Log Q-values for the first 50 episodes
+# Function to log Q-values
 def log_q_values(q_network, episode, q_values_trend):
     q_state_dict = q_network.state_dict()
-    layer_key = "fc.2.weight"  # Example layer; adjust to your model structure
-    q_values = q_state_dict[layer_key].cpu().numpy()
-    q_values_trend.append((episode, q_values.mean()))
+    layer_key = "fc.2.weight"  # Adjust based on your model architecture
+
+    if layer_key in q_state_dict:
+        q_values = q_state_dict[layer_key].cpu().detach().numpy()
+        q_values_mean = np.mean(q_values)
+        q_values_trend.append((episode, q_values_mean))
+    else:
+        print(f"Layer key '{layer_key}' not found in state_dict.")
+
 
 # Training loop
 for episode in range(episodes):
