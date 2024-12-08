@@ -1,0 +1,25 @@
+Interpreting the Change in Mean Q-Value Over Episodes Plot
+This graph illustrates how the mean Q-value changes from one episode to the next during the training process. Here's how to interpret the key trends:
+
+Large Initial Changes:
+
+At the beginning, the changes in Q-values are relatively large and fluctuate significantly (both positive and negative).
+This is expected because the agent is exploring the environment (high epsilon in the epsilon-greedy strategy) and learning to associate actions with rewards.
+Decreasing Magnitude of Changes:
+
+As the training progresses, the magnitude of the changes decreases and stabilizes closer to zero.
+This suggests that the agent is converging to a stable policy, with smaller adjustments being made to the Q-values.
+Oscillations Around Zero:
+
+In later episodes, the changes oscillate near zero, indicating fine-tuning of Q-values rather than dramatic updates.
+This behavior aligns with the epsilon decay, where the agent increasingly exploits learned policies rather than exploring new ones.
+Negative Changes:
+
+Occasional negative changes reflect situations where the agent adjusts its policy to correct for suboptimal actions or rewards.
+Key Takeaways for Your Paper:
+Learning Stability:
+Highlight that the agent starts with large Q-value adjustments and gradually stabilizes, reflecting successful convergence.
+Early Exploration:
+The large changes early on demonstrate the effect of exploration during high-epsilon episodes.
+Convergence Phase:
+Oscillations around zero in later episodes confirm that the agent has transitioned from exploration to exploitation, refining its policy incrementally.
