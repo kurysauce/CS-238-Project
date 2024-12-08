@@ -1,0 +1,17 @@
+Interpretation of the Plot
+The plot shows the Mean Q-Value Trends Over Episodes based on the Q-table's values recorded at each episode:
+
+Positive Mean Q-Values:
+
+Positive trends indicate that the agent is learning to associate actions with rewards, resulting in higher Q-values.
+Episodes with spikes (e.g., ~30 episodes onward) suggest significant improvements in the agent's understanding of the environment.
+Negative Mean Q-Values:
+
+Negative values reflect states where penalties are common (e.g., missing the ball or scoring poorly in Pong).
+Early episodes show heavily negative values, likely due to the agent exploring the environment without sufficient knowledge (high epsilon during exploration).
+Fluctuations:
+
+Drops to negative values after spikes (e.g., around episodes 10 and 40) suggest that exploration (random actions) led to worse performance in those episodes.
+Trend Smoothing:
+
+The gradual convergence towards positive Q-values over time indicates that the agent is learning an optimal policy as episodes progress, but the learning may still be unstable due to high exploration or suboptimal hyperparameters.
