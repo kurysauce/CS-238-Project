@@ -4,7 +4,7 @@
 ---
 
 ## Project Overview
-This project implements a **Deep Q-Network (DQN)** to train an agent to play the classic Atari game **Pong** using reinforcement learning. The goal of the agent is to maximize the score by learning optimal paddle movements based on the game's state. We
+This project implements a **Deep Q-Network (DQN)** to train an agent to play the classic Atari game **Pong** using reinforcement learning. The goal of the agent is to maximize the score by learning optimal paddle movements based on the game's state. 
 
 This project highlights key reinforcement learning concepts, including:
 - Neural network-based Q-value approximation.
